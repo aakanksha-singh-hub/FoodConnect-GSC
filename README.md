@@ -1,69 +1,105 @@
-# Welcome to your Lovable project
+# Food Connect - Redistributing Surplus Food
 
-## Project info
+A platform connecting food donors with recipients to reduce food waste and fight hunger in India.
 
-**URL**: https://lovable.dev/projects/2e5392eb-eff0-4266-81e8-f330f9e23db7
+## 🌟 Features
 
-## How can I edit this code?
+- **User Roles**
+  - Food Donors (restaurants, cafes, events)
+  - Food Recipients (NGOs, shelters, community organizations)
 
-There are several ways of editing your application.
+- **Core Functionality**
+  - Real-time donation listings
+  - Easy donation acceptance system
+  - Location-based matching
+  - Impact tracking and statistics
 
-**Use Lovable**
+## 🚀 Getting Started
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/2e5392eb-eff0-4266-81e8-f330f9e23db7) and start prompting.
+### Prerequisites
+- Node.js (v16 or higher)
+- npm (v7 or higher)
+- Firebase account
 
-Changes made via Lovable will be committed automatically to this repo.
+### Installation
 
-**Use your preferred IDE**
+1. Clone the repository:
+```bash
+git clone [repository-url]
+cd [project-directory]
+```
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+2. Install dependencies:
+```bash
+npm install
+```
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+3. Set up environment variables:
+Create a `.env` file in the root directory and add your Firebase configuration:
+```env
+VITE_FIREBASE_API_KEY=your_api_key
+VITE_FIREBASE_AUTH_DOMAIN=your_auth_domain
+VITE_FIREBASE_PROJECT_ID=your_project_id
+VITE_FIREBASE_STORAGE_BUCKET=your_storage_bucket
+VITE_FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id
+VITE_FIREBASE_APP_ID=your_app_id
+```
 
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+4. Start the development server:
+```bash
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+## 💻 Tech Stack
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+- **Frontend**
+  - React with TypeScript
+  - Vite for build tooling
+  - Tailwind CSS for styling
+  - shadcn/ui for UI components
 
-**Use GitHub Codespaces**
+- **Backend**
+  - Firebase Authentication
+  - Cloud Firestore
+  - Firebase Security Rules
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## 📱 Key Features
 
-## What technologies are used for this project?
+### For Donors
+- Easy donation listing creation
+- Real-time status updates
+- Impact tracking dashboard
+- Donation history
 
-This project is built with .
+### For Recipients
+- Browse available donations
+- Accept donations with one click
+- View donor information
+- Track accepted donations
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## 🔒 Security
 
-## How can I deploy this project?
+- Firebase Authentication for secure user management
+- Role-based access control
+- Firestore security rules for data protection
 
-Simply open [Lovable](https://lovable.dev/projects/2e5392eb-eff0-4266-81e8-f330f9e23db7) and click on Share -> Publish.
+## 📊 Impact Tracking
 
-## I want to use a custom domain - is that possible?
+The platform tracks:
+- Total meals provided
+- Food waste reduced (in kg)
+- Number of organizations reached
+- Money saved (in ₹)
 
-We don't support custom domains (yet). If you want to deploy your project under your own domain then we recommend using Netlify. Visit our docs for more details: [Custom domains](https://docs.lovable.dev/tips-tricks/custom-domain/)
+## 📝 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- All the food donors and recipients making a difference
+- The open-source community
+- Firebase team for the backend infrastructure
+- shadcn/ui for the beautiful components
+
+Made with ❤️ to reduce food waste and fight hunger in India
