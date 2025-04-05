@@ -31,6 +31,22 @@ export default function Navbar() {
     return location.pathname === path;
   };
 
+  // Function to scroll to top of page
+  const scrollToTop = () => {
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  };
+
+  // Function to handle link clicks
+  const handleLinkClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    // Only scroll to top if it's an internal link
+    if (e.currentTarget.getAttribute("href")?.startsWith("/")) {
+      scrollToTop();
+    }
+  };
+
   return (
     <nav
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
@@ -41,7 +57,11 @@ export default function Navbar() {
         <div className="flex justify-between h-16">
           <div className="flex items-center">
             <div className="flex-shrink-0">
-              <Link to="/" className="flex items-center space-x-2 group">
+              <Link
+                to="/"
+                className="flex items-center space-x-2 group"
+                onClick={handleLinkClick}
+              >
                 <div className="w-8 h-8 rounded-full bg-brand-green flex items-center justify-center text-white font-bold transition-transform duration-300 group-hover:scale-110">
                   FC
                 </div>
@@ -54,6 +74,7 @@ export default function Navbar() {
               <Link
                 to="/"
                 className={`nav-link ${isActive("/") ? "active" : ""}`}
+                onClick={handleLinkClick}
               >
                 Home
               </Link>
@@ -62,12 +83,14 @@ export default function Navbar() {
                 className={`nav-link ${
                   isActive("/how-it-works") ? "active" : ""
                 }`}
+                onClick={handleLinkClick}
               >
                 How It Works
               </Link>
               <Link
                 to="/impact"
                 className={`nav-link ${isActive("/impact") ? "active" : ""}`}
+                onClick={handleLinkClick}
               >
                 Our Impact
               </Link>
@@ -80,6 +103,7 @@ export default function Navbar() {
                 <Link
                   to={`/${userRole?.toLowerCase()}-dashboard`}
                   className="nav-link"
+                  onClick={handleLinkClick}
                 >
                   Dashboard
                 </Link>
@@ -94,14 +118,20 @@ export default function Navbar() {
               </div>
             ) : (
               <div className="flex items-center space-x-4">
-                <Link to="/auth?mode=login" className="nav-link">
+                <Link
+                  to="/auth?mode=login"
+                  className="nav-link"
+                  onClick={handleLinkClick}
+                >
                   Login
                 </Link>
                 <Button
                   asChild
                   className="bg-brand-green hover:bg-brand-green/90 text-white transition-colors"
                 >
-                  <Link to="/auth?mode=register">Register</Link>
+                  <Link to="/auth?mode=register" onClick={handleLinkClick}>
+                    Register
+                  </Link>
                 </Button>
               </div>
             )}
@@ -140,6 +170,7 @@ export default function Navbar() {
                 ? "text-brand-green bg-brand-green/10"
                 : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
             }`}
+            onClick={handleLinkClick}
           >
             Home
           </Link>
@@ -150,6 +181,7 @@ export default function Navbar() {
                 ? "text-brand-green bg-brand-green/10"
                 : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
             }`}
+            onClick={handleLinkClick}
           >
             How It Works
           </Link>
@@ -160,6 +192,7 @@ export default function Navbar() {
                 ? "text-brand-green bg-brand-green/10"
                 : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
             }`}
+            onClick={handleLinkClick}
           >
             Our Impact
           </Link>
@@ -168,6 +201,7 @@ export default function Navbar() {
               <Link
                 to={`/${userRole?.toLowerCase()}-dashboard`}
                 className="block px-3 py-2 rounded-md text-base font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                onClick={handleLinkClick}
               >
                 Dashboard
               </Link>
@@ -183,12 +217,14 @@ export default function Navbar() {
               <Link
                 to="/auth?mode=login"
                 className="block px-3 py-2 rounded-md text-base font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                onClick={handleLinkClick}
               >
                 Login
               </Link>
               <Link
                 to="/auth?mode=register"
                 className="block px-3 py-2 rounded-md text-base font-medium text-white bg-brand-green hover:bg-brand-green/90"
+                onClick={handleLinkClick}
               >
                 Register
               </Link>

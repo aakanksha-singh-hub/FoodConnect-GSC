@@ -9,6 +9,7 @@ import {
   MapPin,
   ArrowRight,
   Send,
+  Heart,
 } from "lucide-react";
 import { useState } from "react";
 import SubscriptionAlert from "./SubscriptionAlert";
@@ -27,6 +28,22 @@ const Footer = () => {
     setTimeout(() => setShowAlert(false), 5000);
   };
 
+  // Function to scroll to top of page
+  const scrollToTop = () => {
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  };
+
+  // Function to handle link clicks
+  const handleLinkClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    // Only scroll to top if it's an internal link
+    if (e.currentTarget.getAttribute("href")?.startsWith("/")) {
+      scrollToTop();
+    }
+  };
+
   return (
     <footer className="bg-gray-900 text-gray-100 pt-20 pb-10 relative overflow-hidden">
       {/* Decorative elements */}
@@ -40,7 +57,11 @@ const Footer = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 mb-16">
           {/* About Section */}
           <div className="space-y-5">
-            <Link to="/" className="inline-flex items-center space-x-3 group">
+            <Link
+              to="/"
+              className="inline-flex items-center space-x-3 group"
+              onClick={handleLinkClick}
+            >
               <div className="w-12 h-12 rounded-full flex items-center justify-center bg-brand-green text-white font-bold shadow-lg group-hover:scale-110 transition-transform duration-300">
                 FC
               </div>
@@ -88,6 +109,7 @@ const Footer = () => {
                 <Link
                   to="/how-it-works"
                   className="text-gray-300 hover:text-white flex items-center group transition-colors py-1"
+                  onClick={handleLinkClick}
                 >
                   <ArrowRight className="w-4 h-4 mr-2 text-brand-green opacity-0 group-hover:opacity-100 transition-opacity" />
                   <span>How It Works</span>
@@ -97,6 +119,7 @@ const Footer = () => {
                 <Link
                   to="/impact"
                   className="text-gray-300 hover:text-white flex items-center group transition-colors py-1"
+                  onClick={handleLinkClick}
                 >
                   <ArrowRight className="w-4 h-4 mr-2 text-brand-green opacity-0 group-hover:opacity-100 transition-opacity" />
                   <span>Our Impact</span>
@@ -104,8 +127,9 @@ const Footer = () => {
               </li>
               <li>
                 <Link
-                  to="/auth?mode=register"
+                  to="/auth?mode=register&role=donor"
                   className="text-gray-300 hover:text-white flex items-center group transition-colors py-1"
+                  onClick={handleLinkClick}
                 >
                   <ArrowRight className="w-4 h-4 mr-2 text-brand-green opacity-0 group-hover:opacity-100 transition-opacity" />
                   <span>Become a Donor</span>
@@ -115,9 +139,20 @@ const Footer = () => {
                 <Link
                   to="/auth?mode=register&role=recipient"
                   className="text-gray-300 hover:text-white flex items-center group transition-colors py-1"
+                  onClick={handleLinkClick}
                 >
                   <ArrowRight className="w-4 h-4 mr-2 text-brand-green opacity-0 group-hover:opacity-100 transition-opacity" />
                   <span>Join as Recipient</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/auth?mode=register&role=volunteer"
+                  className="text-gray-300 hover:text-white flex items-center group transition-colors py-1"
+                  onClick={handleLinkClick}
+                >
+                  <ArrowRight className="w-4 h-4 mr-2 text-brand-green opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <span>Become a Volunteer</span>
                 </Link>
               </li>
             </ul>
@@ -134,6 +169,7 @@ const Footer = () => {
                 <Link
                   to="/Blog"
                   className="text-gray-300 hover:text-white flex items-center group transition-colors py-1"
+                  onClick={handleLinkClick}
                 >
                   <ArrowRight className="w-4 h-4 mr-2 text-brand-green opacity-0 group-hover:opacity-100 transition-opacity" />
                   <span>Blog & Updates</span>
@@ -143,6 +179,7 @@ const Footer = () => {
                 <Link
                   to="/FAQ"
                   className="text-gray-300 hover:text-white flex items-center group transition-colors py-1"
+                  onClick={handleLinkClick}
                 >
                   <ArrowRight className="w-4 h-4 mr-2 text-brand-green opacity-0 group-hover:opacity-100 transition-opacity" />
                   <span>FAQ</span>
@@ -152,6 +189,7 @@ const Footer = () => {
                 <Link
                   to="/PrivacyPolicy"
                   className="text-gray-300 hover:text-white flex items-center group transition-colors py-1"
+                  onClick={handleLinkClick}
                 >
                   <ArrowRight className="w-4 h-4 mr-2 text-brand-green opacity-0 group-hover:opacity-100 transition-opacity" />
                   <span>Privacy Policy</span>
@@ -161,6 +199,7 @@ const Footer = () => {
                 <Link
                   to="/TermsOfService"
                   className="text-gray-300 hover:text-white flex items-center group transition-colors py-1"
+                  onClick={handleLinkClick}
                 >
                   <ArrowRight className="w-4 h-4 mr-2 text-brand-green opacity-0 group-hover:opacity-100 transition-opacity" />
                   <span>Terms of Service</span>

@@ -51,11 +51,11 @@ const HeroSection = () => {
                 <Button
                   asChild
                   size="lg"
-                  className="bg-brand-green hover:bg-brand-green/90 text-white font-bold text-lg group shadow-lg hover:shadow-xl transition-all duration-300 px-8 py-6"
+                  className="bg-brand-green hover:bg-brand-green/90 text-white font-bold text-lg group shadow-lg hover:shadow-xl transition-all duration-300"
                 >
                   <Link
                     to="/"
-                    className="flex items-center"
+                    className="flex items-center px-6 py-3"
                     onClick={(e) => {
                       e.preventDefault();
                       const howItWorksSection =
@@ -77,11 +77,11 @@ const HeroSection = () => {
                   asChild
                   size="lg"
                   variant="outline"
-                  className="border-2 border-brand-blue text-brand-blue hover:bg-brand-blue hover:text-white font-bold text-lg group shadow-lg hover:shadow-xl transition-all duration-300 px-8 py-6"
+                  className="border-2 border-brand-blue text-brand-blue hover:bg-brand-blue hover:text-white font-bold text-lg group shadow-lg hover:shadow-xl transition-all duration-300"
                 >
                   <Link
                     to="/auth?mode=register&role=donor"
-                    className="flex items-center whitespace-nowrap"
+                    className="flex items-center whitespace-nowrap px-6 py-3"
                   >
                     Become a Food Donor
                     <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
