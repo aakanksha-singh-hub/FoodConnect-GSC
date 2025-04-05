@@ -1,14 +1,15 @@
-import HeroSection from '@/components/HeroSection';
-import HowItWorks from '@/components/HowItWorks';
-import Testimonials from '@/components/Testimonials';
+import HeroSection from "@/components/HeroSection";
+import HowItWorks from "@/components/HowItWorks";
+import Testimonials from "@/components/Testimonials";
+import PageLayout from "@/components/PageLayout";
 
 const Index = () => {
   return (
-    <main className="flex-grow">
+    <PageLayout>
       <HeroSection />
       <HowItWorks />
       <Testimonials />
-    </main>
+    </PageLayout>
   );
 };
 
