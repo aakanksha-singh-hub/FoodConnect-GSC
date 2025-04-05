@@ -23,12 +23,23 @@ import LogoutHandler from "@/components/LogoutHandler";
 import { useUser } from "@/components/UserContext";
 import PageLayout from "@/components/PageLayout";
 import ScrollToTop from "@/components/ScrollToTop";
+import UserProfile from "@/components/UserProfile";
 
 // Protected Route component
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, userRole } = useUser();
+  const { user, loading, userRole } = useUser();
 
-  if (!user) {
+  // Show loading state while authentication is being checked
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-green"></div>
+      </div>
+    );
+  }
+
+  // Only redirect to login if not loading and user is not authenticated
+  if (!loading && !user) {
     return <Navigate to="/auth?mode=login" />;
   }
 
@@ -91,6 +102,14 @@ export default function App() {
             <Route path="/PrivacyPolicy" element={<PrivacyPolicy />} />
             <Route path="/TermsOfService" element={<TermsOfService />} />
             <Route path="/dashboard" element={<RoleBasedRedirect />} />
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <UserProfile />
+                </ProtectedRoute>
+              }
+            />
           </Routes>
           <LogoutHandler />
           <Footer />

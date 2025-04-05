@@ -19,17 +19,28 @@ import {
 import { UserRole } from "@/types";
 import { ArrowRight, Mail, Lock, User, AlertCircle } from "lucide-react";
 import { motion } from "framer-motion";
+import { useToast } from "@/hooks/use-toast";
+import { useUser } from "@/components/UserContext";
 
 export default function Auth() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { user, userRole, loading } = useUser();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [role, setRole] = useState<UserRole>("donor");
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [authLoading, setAuthLoading] = useState(false);
+  const { toast } = useToast();
+
+  // Redirect already authenticated users to their dashboard
+  useEffect(() => {
+    if (!loading && user && userRole) {
+      navigate(`/${userRole}-dashboard`);
+    }
+  }, [user, userRole, loading, navigate]);
 
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
@@ -51,7 +62,7 @@ export default function Auth() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    setAuthLoading(true);
     setError(null);
 
     try {
@@ -88,6 +99,13 @@ export default function Auth() {
           displayName: name,
         });
 
+        // Show success toast
+        toast({
+          title: "Account created successfully!",
+          description: `Welcome to Food Connect, ${name}! Your account has been created.`,
+          variant: "default",
+        });
+
         // Redirect to appropriate dashboard based on role
         navigate(`/${role}-dashboard`);
       } else {
@@ -112,9 +130,18 @@ export default function Auth() {
       console.error("Auth error:", err);
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
-      setLoading(false);
+      setAuthLoading(false);
     }
   };
+
+  // Show loading state while checking authentication
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-green"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
@@ -247,9 +274,9 @@ export default function Auth() {
             <Button
               type="submit"
               className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-brand-green hover:bg-brand-green/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-green transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
-              disabled={loading}
+              disabled={authLoading}
             >
-              {loading ? (
+              {authLoading ? (
                 <span className="flex items-center">
                   <svg
                     className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"

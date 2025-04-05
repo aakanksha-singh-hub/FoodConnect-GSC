@@ -1,14 +1,17 @@
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useUser } from "@/components/UserContext";
 import { Button } from "@/components/ui/button";
 import { LogOut, Menu, X } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Navbar() {
   const { user, userRole, logout } = useUser();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const { toast } = useToast();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -22,8 +25,19 @@ export default function Navbar() {
   const handleLogout = async () => {
     try {
       await logout();
+      toast({
+        title: "Logged out successfully",
+        description: "You have been logged out of your account.",
+        variant: "default",
+      });
+      navigate("/");
     } catch (error) {
-      console.error("Logout failed:", error);
+      console.error("Logout error:", error);
+      toast({
+        title: "Error",
+        description: "Failed to log out. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -106,6 +120,13 @@ export default function Navbar() {
                   onClick={handleLinkClick}
                 >
                   Dashboard
+                </Link>
+                <Link
+                  to="/profile"
+                  className="nav-link"
+                  onClick={handleLinkClick}
+                >
+                  Profile
                 </Link>
                 <Button
                   variant="ghost"
@@ -204,6 +225,13 @@ export default function Navbar() {
                 onClick={handleLinkClick}
               >
                 Dashboard
+              </Link>
+              <Link
+                to="/profile"
+                className="block px-3 py-2 rounded-md text-base font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                onClick={handleLinkClick}
+              >
+                Profile
               </Link>
               <button
                 onClick={handleLogout}

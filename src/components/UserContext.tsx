@@ -1,74 +1,92 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { auth, db } from '@/integrations/firebase/client';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
-import { User, UserRole } from '@/types';
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+  useCallback,
+  useRef,
+} from "react";
+import { auth, db } from "@/integrations/firebase/client";
+import { User } from "@/types";
+import { getUserProfile } from "@/services/firebase";
 
 interface UserContextType {
   user: User | null;
-  userRole: UserRole | null;
   loading: boolean;
-  error: string | null;
+  userRole: string | null;
   logout: () => Promise<void>;
 }
 
-const UserContext = createContext<UserContextType | undefined>(undefined);
-
-export function useUser() {
-  const context = useContext(UserContext);
-  if (context === undefined) {
-    throw new Error('useUser must be used within a UserProvider');
-  }
-  return context;
-}
+const UserContext = createContext<UserContextType>({
+  user: null,
+  loading: true,
+  userRole: null,
+  logout: async () => {},
+});
 
 export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const authInitialized = useRef(false);
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        try {
-          const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-          if (userDoc.exists()) {
-            const userData = userDoc.data();
-            setUser({ ...firebaseUser, ...userData });
-            setUserRole(userData.role);
-          }
-        } catch (err) {
-          setError(err instanceof Error ? err.message : 'Failed to fetch user data');
-        }
-      } else {
-        setUser(null);
-        setUserRole(null);
+  const fetchUserData = useCallback(async (uid: string) => {
+    try {
+      const userData = await getUserProfile(uid);
+      if (userData) {
+        setUser(userData);
+        setUserRole(userData.role);
       }
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
+    } catch (error) {
+      console.error("Error fetching user data:", error);
+    }
   }, []);
 
-  const logout = async () => {
+  useEffect(() => {
+    let isMounted = true;
+
+    // Only set up the auth listener once
+    if (!authInitialized.current) {
+      authInitialized.current = true;
+
+      const unsubscribe = auth.onAuthStateChanged(async (firebaseUser) => {
+        if (isMounted) {
+          setLoading(true);
+
+          if (firebaseUser) {
+            await fetchUserData(firebaseUser.uid);
+          } else {
+            setUser(null);
+            setUserRole(null);
+          }
+
+          setLoading(false);
+        }
+      });
+
+      return () => {
+        isMounted = false;
+        unsubscribe();
+      };
+    }
+  }, [fetchUserData]);
+
+  const logout = useCallback(async () => {
     try {
-      await signOut(auth);
+      await auth.signOut();
       setUser(null);
       setUserRole(null);
     } catch (error) {
-      console.error('Error logging out:', error);
-      throw error;
+      console.error("Error signing out:", error);
     }
-  };
+  }, []);
 
-  const value = {
-    user,
-    userRole,
-    loading,
-    error,
-    logout,
-  };
-
-  return <UserContext.Provider value={value}>{children}</UserContext.Provider>;
+  return (
+    <UserContext.Provider value={{ user, loading, userRole, logout }}>
+      {children}
+    </UserContext.Provider>
+  );
 }
+
+export const useUser = () => useContext(UserContext);
