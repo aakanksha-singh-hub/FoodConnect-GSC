@@ -9,6 +9,7 @@ import {
   doc,
   getDoc,
   orderBy,
+  onSnapshot,
 } from "firebase/firestore";
 import { User, Donation, Pickup } from "@/types";
 
@@ -633,4 +634,23 @@ export const claimDonation = async (
     console.error("Error claiming donation:", error);
     throw error;
   }
+};
+
+export const subscribeToDonorDonations = (
+  donorId: string,
+  onUpdate: (donations: Donation[]) => void
+) => {
+  const donationsRef = collection(db, "donations");
+  const q = query(donationsRef, where("donorId", "==", donorId));
+
+  // Set up real-time listener
+  const unsubscribe = onSnapshot(q, (snapshot) => {
+    const donations = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    })) as Donation[];
+    onUpdate(donations);
+  });
+
+  return unsubscribe;
 };
