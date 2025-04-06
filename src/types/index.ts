@@ -107,6 +107,7 @@ export interface Pickup {
   dropoffContactPhone?: string;
   createdAt: string;
   updatedAt?: string;
+  notes?: string;
 
   // Enhanced tracking timestamps
   startedForPickupAt?: string;

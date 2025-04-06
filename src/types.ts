@@ -3,13 +3,14 @@ export interface Pickup {
   donationId: string;
   volunteerId: string;
   status:
-    | "in_transit"
-    | "delivered"
+    | "pending"
     | "assigned"
     | "started_for_pickup"
     | "at_pickup_location"
     | "pickup_complete"
+    | "in_transit"
     | "at_delivery_location"
+    | "delivered"
     | "cancelled";
   createdAt: string;
   updatedAt: string;
