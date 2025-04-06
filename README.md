@@ -1,6 +1,7 @@
 # 🍽️ FoodConnect - Connecting Food Donors with Recipients
 
-![FoodConnect Logo](public/logo.png)
+
+https://github.com/user-attachments/assets/d318bcd0-c848-4145-966b-945851e2c7dc
 
 ## 🌟 Overview
 
