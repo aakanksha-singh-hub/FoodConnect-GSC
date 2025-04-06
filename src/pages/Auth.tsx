@@ -268,6 +268,17 @@ export default function Auth() {
                 placeholder="Password"
               />
             </div>
+
+            {mode === "login" && (
+              <div className="text-right">
+                <Link
+                  to="/forgot-password"
+                  className="text-sm font-medium text-brand-green hover:text-brand-green/80"
+                >
+                  Forgot your password?
+                </Link>
+              </div>
+            )}
           </div>
 
           <div>

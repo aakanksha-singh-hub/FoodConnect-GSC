@@ -8,9 +8,15 @@ export interface User {
   name?: string;
   displayName?: string;
   organizationName?: string;
-  phone?: string;
+  phone: string;
   location?: string;
-  address?: string;
+  address: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  lat?: number;
+  lng?: number;
+  profileComplete?: boolean;
   createdAt: string;
 }
 
@@ -66,7 +72,16 @@ export interface Pickup {
   donorId: string;
   recipientId: string;
   volunteerId: string;
-  status: "pending" | "in_progress" | "completed" | "cancelled";
+  status:
+    | "pending"
+    | "assigned"
+    | "started_for_pickup"
+    | "at_pickup_location"
+    | "pickup_complete"
+    | "in_transit"
+    | "at_delivery_location"
+    | "delivered"
+    | "cancelled";
   quantity: number;
   pickupLocation: string;
   pickupAddress: string;
@@ -92,5 +107,61 @@ export interface Pickup {
   dropoffContactPhone?: string;
   createdAt: string;
   updatedAt?: string;
+
+  // Enhanced tracking timestamps
+  startedForPickupAt?: string;
+  arrivedAtPickupAt?: string;
+  pickupCompletedAt?: string;
+  inTransitAt?: string;
+  arrivedAtDropoffAt?: string;
+  deliveredAt?: string;
   completedAt?: string;
+  cancelledAt?: string;
+
+  // Current location tracking for map display
+  currentLat?: number;
+  currentLng?: number;
+  lastLocationUpdateAt?: string;
 }
+
+export const getAcceptedDonations = async (
+  location?: string
+): Promise<Donation[]> => {
+  try {
+    // Use composite indexes for faster queries
+    let q = query(
+      collection(db, "donations"),
+      where("status", "==", "accepted"),
+      // Add limit to prevent loading too much data at once
+      limit(50)
+    );
+
+    if (location && location !== "all") {
+      q = query(q, where("pickupCity", "==", location));
+    }
+
+    // Use Promise.all to fetch donations and users in parallel
+    const [querySnapshot, usersSnapshot] = await Promise.all([
+      getDocs(q),
+      getDocs(collection(db, "users")),
+    ]);
+
+    // Create user lookup map (more efficient)
+    const userMap = new Map();
+    usersSnapshot.docs.forEach((doc) => {
+      const data = doc.data();
+      userMap.set(doc.id, {
+        name: data.organizationName || data.name || "Unknown",
+        address: data.address || "",
+      });
+    });
+
+    // Process donations with the user data
+    return querySnapshot.docs.map((docSnapshot) => {
+      // ... rest of mapping logic using userMap
+    });
+  } catch (error) {
+    console.error("Error fetching accepted donations:", error);
+    throw error;
+  }
+};

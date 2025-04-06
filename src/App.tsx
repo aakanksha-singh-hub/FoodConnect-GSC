@@ -24,10 +24,21 @@ import { useUser } from "@/components/UserContext";
 import PageLayout from "@/components/PageLayout";
 import ScrollToTop from "@/components/ScrollToTop";
 import UserProfile from "@/components/UserProfile";
+import { ProfileUpdateModal } from "@/components/ProfileUpdateModal";
+import { ForgotPassword } from "@/components/ForgotPassword";
+import { useState, useEffect } from "react";
 
 // Protected Route component
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading, userRole } = useUser();
+  const { user, loading, userRole, isProfileComplete } = useUser();
+  const [showProfileModal, setShowProfileModal] = useState(false);
+
+  // Check if profile update is needed
+  useEffect(() => {
+    if (user && !isProfileComplete) {
+      setShowProfileModal(true);
+    }
+  }, [user, isProfileComplete]);
 
   // Show loading state while authentication is being checked
   if (loading) {
@@ -43,7 +54,17 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/auth?mode=login" />;
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      {showProfileModal && (
+        <ProfileUpdateModal
+          open={showProfileModal}
+          onOpenChange={setShowProfileModal}
+        />
+      )}
+    </>
+  );
 }
 
 // Role-based redirect component
@@ -61,60 +82,87 @@ function RoleBasedRedirect() {
   return <Navigate to="/" />;
 }
 
+function AppContent() {
+  const { user, isProfileComplete } = useUser();
+  const [showProfileModal, setShowProfileModal] = useState(false);
+
+  // Check if profile update is needed for any authenticated pages
+  useEffect(() => {
+    if (user && !isProfileComplete) {
+      setShowProfileModal(true);
+    }
+  }, [user, isProfileComplete]);
+
+  return (
+    <>
+      <ScrollToTop />
+      <div className="min-h-screen flex flex-col">
+        <Navbar />
+        <Routes>
+          <Route path="/" element={<Index />} />
+          <Route path="/auth" element={<Auth />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route
+            path="/donor-dashboard"
+            element={
+              <ProtectedRoute>
+                <DonorDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/recipient-dashboard"
+            element={
+              <ProtectedRoute>
+                <RecipientDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/volunteer-dashboard"
+            element={
+              <ProtectedRoute>
+                <VolunteerDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="/how-it-works" element={<HowItWorks />} />
+          <Route path="/impact" element={<Impact />} />
+          <Route path="/Blog" element={<Blog />} />
+          <Route path="/FAQ" element={<FAQ />} />
+          <Route path="/PrivacyPolicy" element={<PrivacyPolicy />} />
+          <Route path="/TermsOfService" element={<TermsOfService />} />
+          <Route path="/dashboard" element={<RoleBasedRedirect />} />
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <UserProfile />
+              </ProtectedRoute>
+            }
+          />
+        </Routes>
+        <LogoutHandler />
+        <Footer />
+      </div>
+      <Toaster />
+
+      {/* Profile update modal for authenticated users visiting non-protected routes */}
+      {showProfileModal && (
+        <ProfileUpdateModal
+          open={showProfileModal}
+          onOpenChange={setShowProfileModal}
+        />
+      )}
+    </>
+  );
+}
+
 export default function App() {
   return (
     <Router>
       <UserProvider>
-        <ScrollToTop />
-        <div className="min-h-screen flex flex-col">
-          <Navbar />
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/auth" element={<Auth />} />
-            <Route
-              path="/donor-dashboard"
-              element={
-                <ProtectedRoute>
-                  <DonorDashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/recipient-dashboard"
-              element={
-                <ProtectedRoute>
-                  <RecipientDashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/volunteer-dashboard"
-              element={
-                <ProtectedRoute>
-                  <VolunteerDashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route path="/how-it-works" element={<HowItWorks />} />
-            <Route path="/impact" element={<Impact />} />
-            <Route path="/Blog" element={<Blog />} />
-            <Route path="/FAQ" element={<FAQ />} />
-            <Route path="/PrivacyPolicy" element={<PrivacyPolicy />} />
-            <Route path="/TermsOfService" element={<TermsOfService />} />
-            <Route path="/dashboard" element={<RoleBasedRedirect />} />
-            <Route
-              path="/profile"
-              element={
-                <ProtectedRoute>
-                  <UserProfile />
-                </ProtectedRoute>
-              }
-            />
-          </Routes>
-          <LogoutHandler />
-          <Footer />
-        </div>
-        <Toaster />
+        <AppContent />
       </UserProvider>
     </Router>
   );

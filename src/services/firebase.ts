@@ -263,48 +263,86 @@ export const updateRecipientProfile = async (
 };
 
 // Pickup Operations
-export const createPickup = async (
-  pickup: Omit<Pickup, "id" | "status" | "createdAt">
-) => {
+export const createPickup = async (data: {
+  donationId: string;
+  donorId: string;
+  recipientId: string;
+  volunteerId: string;
+  pickupLocation: string;
+  dropoffLocation: string;
+  quantity: number;
+  pickupAddress?: string;
+  pickupCity?: string;
+  pickupState?: string;
+  pickupZipCode?: string;
+  pickupLat?: number;
+  pickupLng?: number;
+  dropoffAddress?: string;
+  dropoffCity?: string;
+  dropoffState?: string;
+  dropoffZipCode?: string;
+  dropoffLat?: number;
+  dropoffLng?: number;
+  contactPersonName?: string;
+  contactPersonPhone?: string;
+  dropoffContactName?: string;
+  dropoffContactPhone?: string;
+}) => {
   try {
-    if (
-      !pickup.donationId ||
-      !pickup.donorId ||
-      !pickup.recipientId ||
-      !pickup.volunteerId
-    ) {
-      throw new Error("Missing required fields for pickup");
-    }
-
-    // Get the donation details to populate pickup fields
-    const donationRef = doc(db, "donations", pickup.donationId);
-    const donationDoc = await getDoc(donationRef);
-
+    // Get the donation to fill in any missing pickup data
+    const donationDoc = await getDoc(doc(db, "donations", data.donationId));
     if (!donationDoc.exists()) {
       throw new Error("Donation not found");
     }
 
-    const donationData = donationDoc.data() as Donation;
+    const donation = donationDoc.data() as Donation;
 
-    // Create the pickup with all required fields
-    return addDoc(collection(db, "pickups"), {
-      ...pickup,
-      // Use donation data for pickup location
-      pickupAddress: donationData.pickupAddress,
-      pickupCity: donationData.pickupCity,
-      pickupState: donationData.pickupState,
-      pickupZipCode: donationData.pickupZipCode,
-      pickupLat: donationData.pickupLat,
-      pickupLng: donationData.pickupLng,
-      pickupInstructions: donationData.pickupInstructions,
-      pickupTimeWindowStart: donationData.pickupTimeWindowStart,
-      pickupTimeWindowEnd: donationData.pickupTimeWindowEnd,
-      contactPersonName: donationData.contactPersonName,
-      contactPersonPhone: donationData.contactPersonPhone,
-      // Set default status and timestamps
-      status: "in_progress",
+    // Create pickup with donation data filling in missing fields
+    const pickupData: Omit<Pickup, "id" | "status" | "createdAt"> = {
+      donationId: data.donationId,
+      donorId: data.donorId,
+      recipientId: data.recipientId,
+      volunteerId: data.volunteerId,
+      quantity: data.quantity,
+
+      // Pickup location details
+      pickupLocation: data.pickupLocation,
+      pickupAddress: data.pickupAddress || donation.pickupAddress,
+      pickupCity: data.pickupCity || donation.pickupCity,
+      pickupState: data.pickupState || donation.pickupState,
+      pickupZipCode: data.pickupZipCode || donation.pickupZipCode,
+      pickupLat: data.pickupLat || donation.pickupLat,
+      pickupLng: data.pickupLng || donation.pickupLng,
+      pickupInstructions: donation.pickupInstructions,
+      pickupTimeWindowStart: donation.pickupTimeWindowStart,
+      pickupTimeWindowEnd: donation.pickupTimeWindowEnd,
+      contactPersonName: data.contactPersonName || donation.contactPersonName,
+      contactPersonPhone:
+        data.contactPersonPhone || donation.contactPersonPhone,
+
+      // Dropoff location details
+      dropoffLocation: data.dropoffLocation,
+      dropoffAddress:
+        data.dropoffAddress || donation.recipientAddress || "To be provided",
+      dropoffCity: data.dropoffCity || "",
+      dropoffState: data.dropoffState || "",
+      dropoffZipCode: data.dropoffZipCode || "",
+      dropoffLat: data.dropoffLat || donation.recipientLat || 0,
+      dropoffLng: data.dropoffLng || donation.recipientLng || 0,
+      dropoffInstructions: "",
+      dropoffContactName: data.dropoffContactName || donation.recipientName,
+      dropoffContactPhone: data.dropoffContactPhone || "",
+    };
+
+    const pickupRef = collection(db, "pickups");
+    const pickupDoc = await addDoc(pickupRef, {
+      ...pickupData,
+      status: "assigned",
       createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     });
+
+    return pickupDoc;
   } catch (error) {
     console.error("Error creating pickup:", error);
     throw error;
@@ -332,9 +370,25 @@ export const getPickupsByVolunteer = async (volunteerId: string) => {
   }
 };
 
-export const updatePickupStatus = async (
+// Enhanced pickup status options for delivery tracking
+export type PickupStatusType =
+  | "pending"
+  | "assigned"
+  | "started_for_pickup"
+  | "at_pickup_location"
+  | "pickup_complete"
+  | "in_transit"
+  | "in_progress"
+  | "at_delivery_location"
+  | "delivered"
+  | "completed"
+  | "cancelled";
+
+// Update a pickup with new status and additional data
+export const updatePickupWithStatus = async (
   pickupId: string,
-  status: Pickup["status"]
+  status: PickupStatusType,
+  additionalData?: Partial<Pickup>
 ) => {
   try {
     if (!pickupId) {
@@ -342,20 +396,139 @@ export const updatePickupStatus = async (
     }
 
     const pickupRef = doc(db, "pickups", pickupId);
-    const updateData: Partial<Pickup> = {
-      status,
-      updatedAt: new Date().toISOString(),
-    };
+    const currentTime = new Date().toISOString();
 
-    // Add completedAt timestamp if status is completed
-    if (status === "completed") {
-      updateData.completedAt = new Date().toISOString();
+    // Prepare status-specific timestamps
+    const statusTimestamps: Record<string, any> = {};
+
+    switch (status) {
+      case "started_for_pickup":
+        statusTimestamps.startedForPickupAt = currentTime;
+        break;
+      case "at_pickup_location":
+        statusTimestamps.arrivedAtPickupAt = currentTime;
+        break;
+      case "pickup_complete":
+        statusTimestamps.pickupCompletedAt = currentTime;
+        break;
+      case "in_transit":
+        statusTimestamps.inTransitAt = currentTime;
+        break;
+      case "at_delivery_location":
+        statusTimestamps.arrivedAtDropoffAt = currentTime;
+        break;
+      case "delivered":
+        statusTimestamps.deliveredAt = currentTime;
+        statusTimestamps.completedAt = currentTime;
+        break;
     }
 
+    const updateData = {
+      status,
+      ...statusTimestamps,
+      ...additionalData,
+      updatedAt: currentTime,
+    };
+
     await updateDoc(pickupRef, updateData);
+
+    // If this is the final delivery status, also update the donation status
+    if (status === "delivered") {
+      const pickupDoc = await getDoc(pickupRef);
+      if (pickupDoc.exists()) {
+        const pickupData = pickupDoc.data();
+        if (pickupData.donationId) {
+          await updateDonationStatus(pickupData.donationId, "delivered", {
+            deliveredAt: currentTime,
+            updatedAt: currentTime,
+          });
+        }
+      }
+    }
+
     return true;
   } catch (error) {
-    console.error("Error updating pickup status:", error);
+    console.error("Error updating pickup with status:", error);
+    throw new Error("Failed to update pickup status");
+  }
+};
+
+// Get all pickup status history for a specific pickup
+export const getPickupStatusHistory = async (pickupId: string) => {
+  try {
+    if (!pickupId) {
+      throw new Error("Pickup ID is required");
+    }
+
+    const q = query(
+      collection(db, "pickupStatusHistory"),
+      where("pickupId", "==", pickupId),
+      orderBy("timestamp", "asc")
+    );
+
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+  } catch (error) {
+    console.error("Error fetching pickup status history:", error);
+    throw error;
+  }
+};
+
+// Record a new pickup status change
+export const recordPickupStatusChange = async (
+  pickupId: string,
+  status: PickupStatusType,
+  notes?: string
+) => {
+  try {
+    if (!pickupId) {
+      throw new Error("Pickup ID is required");
+    }
+
+    return addDoc(collection(db, "pickupStatusHistory"), {
+      pickupId,
+      status,
+      notes,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Error recording pickup status change:", error);
+    throw error;
+  }
+};
+
+// Get active pickups for a volunteer
+export const getActivePickupsForVolunteer = async (
+  volunteerId: string
+): Promise<Pickup[]> => {
+  try {
+    if (!volunteerId) {
+      throw new Error("Volunteer ID is required");
+    }
+
+    const q = query(
+      collection(db, "pickups"),
+      where("volunteerId", "==", volunteerId),
+      where("status", "in", [
+        "assigned",
+        "started_for_pickup",
+        "at_pickup_location",
+        "pickup_complete",
+        "in_transit",
+        "at_delivery_location",
+      ])
+    );
+
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    })) as Pickup[];
+  } catch (error) {
+    console.error("Error fetching active pickups for volunteer:", error);
     throw error;
   }
 };
@@ -399,6 +572,65 @@ export const getDonationsByRecipient = async (
     })) as Donation[];
   } catch (error) {
     console.error("Error fetching donations by recipient:", error);
+    throw error;
+  }
+};
+
+// Backward compatibility function for existing code
+export const updatePickupStatus = async (
+  pickupId: string,
+  status: "pending" | "in_progress" | "completed" | "cancelled"
+) => {
+  // Map old status types to new ones
+  let newStatus: PickupStatusType = status as PickupStatusType;
+
+  // Handle legacy status mappings
+  if (status === "in_progress") {
+    newStatus = "in_transit";
+  } else if (status === "completed") {
+    newStatus = "delivered";
+  }
+
+  return updatePickupWithStatus(pickupId, newStatus);
+};
+
+// Add a new function to claim a donation
+export const claimDonation = async (
+  donationId: string,
+  recipientId: string,
+  recipientName: string,
+  recipientAddress: string
+) => {
+  try {
+    if (!donationId || !recipientId) {
+      throw new Error("Donation ID and Recipient ID are required");
+    }
+
+    const donationRef = doc(db, "donations", donationId);
+
+    // Check if donation is still available
+    const donationDoc = await getDoc(donationRef);
+    if (!donationDoc.exists()) {
+      throw new Error("Donation not found");
+    }
+
+    const donationData = donationDoc.data();
+    if (donationData.status !== "pending") {
+      throw new Error("This donation is no longer available");
+    }
+
+    // Update the donation status to accepted and add recipient info
+    await updateDoc(donationRef, {
+      status: "accepted",
+      recipientId,
+      recipientName,
+      recipientAddress,
+      updatedAt: new Date().toISOString(),
+    });
+
+    return true;
+  } catch (error) {
+    console.error("Error claiming donation:", error);
     throw error;
   }
 };

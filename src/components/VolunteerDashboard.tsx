@@ -5,7 +5,8 @@ import {
   updateDonationStatus,
   createPickup,
   getPickupsByVolunteer,
-  updatePickupStatus,
+  updatePickupWithStatus,
+  PickupStatusType,
 } from "@/services/firebase";
 import { Donation, Pickup } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -199,7 +200,7 @@ export default function VolunteerDashboard() {
         // Update pickup status
         const pickup = pickups.find((p) => p.donationId === donation.id);
         if (pickup) {
-          await updatePickupStatus(pickup.id!, "completed");
+          await updatePickupWithStatus(pickup.id!, "delivered");
         }
 
         // Refresh the data
@@ -276,17 +277,17 @@ export default function VolunteerDashboard() {
 
   const handleStatusUpdate = async (
     pickupId: string,
-    newStatus: "completed" | "cancelled"
+    newStatus: "delivered" | "cancelled"
   ) => {
-    if (!user) return;
-
     try {
       setError(null);
-      await updatePickupStatus(pickupId, newStatus);
+      await updatePickupWithStatus(pickupId, newStatus);
 
       // Refresh the pickups list
-      const updatedPickups = await getPickupsByVolunteer(user.uid);
-      setPickups(updatedPickups);
+      if (user) {
+        const volunteerPickups = await getPickupsByVolunteer(user.uid);
+        setPickups(volunteerPickups);
+      }
     } catch (err) {
       console.error("Error updating pickup status:", err);
       setError(

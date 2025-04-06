@@ -15,6 +15,7 @@ interface UserContextType {
   user: User | null;
   loading: boolean;
   userRole: string | null;
+  isProfileComplete: boolean;
   logout: () => Promise<void>;
 }
 
@@ -22,6 +23,7 @@ const UserContext = createContext<UserContextType>({
   user: null,
   loading: true,
   userRole: null,
+  isProfileComplete: false,
   logout: async () => {},
 });
 
@@ -29,6 +31,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [isProfileComplete, setIsProfileComplete] = useState(false);
   const authInitialized = useRef(false);
 
   const fetchUserData = useCallback(async (uid: string) => {
@@ -37,6 +40,13 @@ export function UserProvider({ children }: { children: ReactNode }) {
       if (userData) {
         setUser(userData);
         setUserRole(userData.role);
+
+        // Check if profile is complete (has required fields)
+        const profileComplete = !!(
+          userData.profileComplete ||
+          (userData.phone && userData.address)
+        );
+        setIsProfileComplete(profileComplete);
       }
     } catch (error) {
       console.error("Error fetching user data:", error);
@@ -77,13 +87,16 @@ export function UserProvider({ children }: { children: ReactNode }) {
       await auth.signOut();
       setUser(null);
       setUserRole(null);
+      setIsProfileComplete(false);
     } catch (error) {
       console.error("Error signing out:", error);
     }
   }, []);
 
   return (
-    <UserContext.Provider value={{ user, loading, userRole, logout }}>
+    <UserContext.Provider
+      value={{ user, loading, userRole, isProfileComplete, logout }}
+    >
       {children}
     </UserContext.Provider>
   );
