@@ -73,6 +73,7 @@ import {
   getPickupsByVolunteer,
   getUserProfile,
   updateRecipientProfile,
+  getRecipientActivityHistory,
 } from "@/services/firebase";
 
 export default function UserProfile() {
@@ -145,17 +146,10 @@ export default function UserProfile() {
             totalPickups: 0,
           });
         } else if (userRole === "recipient") {
-          // Fetch donations accepted by this recipient
-          const q = query(
-            collection(db, "donations"),
-            where("recipientId", "==", user.uid),
-            orderBy("createdAt", "desc")
+          // Use the new function to fetch recipient activity history
+          const recipientDonations = await getRecipientActivityHistory(
+            user.uid
           );
-          const querySnapshot = await getDocs(q);
-          const recipientDonations = querySnapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          })) as Donation[];
           setAcceptedDonations(recipientDonations);
           setStats({
             totalDonations: 0,
@@ -172,7 +166,7 @@ export default function UserProfile() {
             totalDonations: 0,
             totalAccepted: 0,
             totalDelivered: volunteerPickups.filter(
-              (p) => p.status === "completed"
+              (p) => p.status === "delivered"
             ).length,
             totalPickups: volunteerPickups.length,
           });
@@ -695,9 +689,7 @@ export default function UserProfile() {
                                 <Badge
                                   variant="outline"
                                   className={`${
-                                    donation.status === "available"
-                                      ? "bg-yellow-100 text-yellow-800 border-yellow-200"
-                                      : donation.status === "accepted"
+                                    donation.status === "accepted"
                                       ? "bg-blue-100 text-blue-800 border-blue-200"
                                       : donation.status === "in_transit"
                                       ? "bg-purple-100 text-purple-800 border-purple-200"
@@ -874,9 +866,9 @@ export default function UserProfile() {
                                   <Clock className="h-4 w-4 mr-2 text-gray-500" />
                                   <span className="font-medium">Accepted:</span>
                                   <span className="ml-2">
-                                    {donation.acceptedAt
+                                    {donation.updatedAt
                                       ? new Date(
-                                          donation.acceptedAt
+                                          donation.updatedAt
                                         ).toLocaleDateString()
                                       : "Unknown"}
                                   </span>
@@ -926,7 +918,7 @@ export default function UserProfile() {
                                   className={`${
                                     pickup.status === "pending"
                                       ? "bg-yellow-100 text-yellow-800 border-yellow-200"
-                                      : pickup.status === "in_progress"
+                                      : pickup.status === "in_transit"
                                       ? "bg-blue-100 text-blue-800 border-blue-200"
                                       : "bg-green-100 text-green-800 border-green-200"
                                   }`}

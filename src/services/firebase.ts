@@ -73,10 +73,47 @@ export const getAvailableDonations = async (
     }
 
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    })) as Donation[];
+
+    // Get all unique donor IDs
+    const donorIds = new Set<string>();
+    querySnapshot.docs.forEach((doc) => {
+      const data = doc.data();
+      if (data.donorId) donorIds.add(data.donorId);
+    });
+
+    // Batch fetch all donor data
+    const donorPromises = Array.from(donorIds).map((id) =>
+      getDoc(doc(db, "users", id))
+    );
+    const donorDocs = await Promise.all(donorPromises);
+
+    // Create map for quick lookup
+    const donorMap = new Map();
+    donorDocs.forEach((doc) => {
+      if (doc.exists()) {
+        const data = doc.data();
+        donorMap.set(doc.id, {
+          name: data.organizationName || data.name || "Unknown Donor",
+          address: data.address,
+        });
+      }
+    });
+
+    // Map the donations with the donor data
+    return querySnapshot.docs.map((docSnapshot) => {
+      const data = docSnapshot.data() as Omit<Donation, "id">;
+      const donorData = donorMap.get(data.donorId) || {
+        name: "Unknown Donor",
+        address: data.location,
+      };
+
+      return {
+        ...data,
+        id: docSnapshot.id,
+        donorName: donorData.name,
+        donorAddress: donorData.address || data.location,
+      } as Donation;
+    });
   } catch (error) {
     console.error("Error fetching available donations:", error);
     throw error;
@@ -653,4 +690,181 @@ export const subscribeToDonorDonations = (
   });
 
   return unsubscribe;
+};
+
+export const subscribeToRecipientDonations = (
+  recipientId: string,
+  onUpdate: (donations: Donation[]) => void
+) => {
+  const donationsRef = collection(db, "donations");
+  const q = query(donationsRef, where("recipientId", "==", recipientId));
+
+  return onSnapshot(q, (snapshot) => {
+    const donations = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    })) as Donation[];
+    onUpdate(donations);
+  });
+};
+
+export const subscribeToRecipientDonationsSorted = (
+  recipientId: string,
+  onUpdate: (donations: Donation[]) => void
+) => {
+  const donationsRef = collection(db, "donations");
+  const q = query(donationsRef, where("recipientId", "==", recipientId));
+
+  return onSnapshot(q, (snapshot) => {
+    const donations = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    })) as Donation[];
+
+    // Sort donations by createdAt in descending order (newest first)
+    const sortedDonations = [...donations].sort((a, b) => {
+      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return dateB - dateA;
+    });
+
+    onUpdate(sortedDonations);
+  });
+};
+
+export const getRecipientActivityHistory = async (
+  recipientId: string
+): Promise<Donation[]> => {
+  try {
+    if (!recipientId) {
+      throw new Error("Recipient ID is required");
+    }
+
+    const q = query(
+      collection(db, "donations"),
+      where("recipientId", "==", recipientId)
+    );
+    const snapshot = await getDocs(q);
+
+    // Get all unique donor IDs
+    const donorIds = new Set<string>();
+    snapshot.docs.forEach((doc) => {
+      const data = doc.data();
+      if (data.donorId) donorIds.add(data.donorId);
+    });
+
+    // Batch fetch all donor data
+    const donorPromises = Array.from(donorIds).map((id) =>
+      getDoc(doc(db, "users", id))
+    );
+    const donorDocs = await Promise.all(donorPromises);
+
+    // Create map for quick lookup
+    const donorMap = new Map();
+    donorDocs.forEach((doc) => {
+      if (doc.exists()) {
+        const data = doc.data();
+        donorMap.set(doc.id, {
+          name: data.organizationName || data.name || "Unknown Donor",
+          address: data.address,
+        });
+      }
+    });
+
+    // Map the donations with the donor data
+    const donations = snapshot.docs.map((docSnapshot) => {
+      const data = docSnapshot.data() as Omit<Donation, "id">;
+      const donorData = donorMap.get(data.donorId) || {
+        name: "Unknown Donor",
+        address: data.location,
+      };
+
+      return {
+        ...data,
+        id: docSnapshot.id,
+        donorName: donorData.name,
+        donorAddress: donorData.address || data.location,
+      } as Donation;
+    });
+
+    // Sort by createdAt in descending order (newest first)
+    return donations.sort((a, b) => {
+      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return dateB - dateA;
+    });
+  } catch (error) {
+    console.error("Error fetching recipient activity history:", error);
+    throw error;
+  }
+};
+
+export const subscribeToVolunteerPickups = (
+  volunteerId: string,
+  onUpdate: (pickups: Pickup[]) => void
+) => {
+  const pickupsRef = collection(db, "pickups");
+  const q = query(pickupsRef, where("volunteerId", "==", volunteerId));
+
+  return onSnapshot(q, (snapshot) => {
+    const pickups = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    })) as Pickup[];
+    onUpdate(pickups);
+  });
+};
+
+export const subscribeToAvailableDonations = (
+  onUpdate: (donations: Donation[]) => void
+) => {
+  const donationsRef = collection(db, "donations");
+  const q = query(donationsRef, where("status", "==", "accepted"));
+
+  return onSnapshot(q, async (snapshot) => {
+    const donations = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    })) as Donation[];
+
+    // Get all unique donor IDs
+    const donorIds = new Set<string>();
+    donations.forEach((donation) => {
+      if (donation.donorId) donorIds.add(donation.donorId);
+    });
+
+    // Batch fetch all donor data
+    const donorPromises = Array.from(donorIds).map((id) =>
+      getDoc(doc(db, "users", id))
+    );
+    const donorDocs = await Promise.all(donorPromises);
+
+    // Create map for quick lookup
+    const donorMap = new Map();
+    donorDocs.forEach((doc) => {
+      if (doc.exists()) {
+        const data = doc.data();
+        donorMap.set(doc.id, {
+          name: data.organizationName || data.name || "Unknown Donor",
+          address: data.address,
+        });
+      }
+    });
+
+    // Map the donations with the donor data
+    const donationsWithDonorInfo = donations.map((donation) => {
+      const donorData = donorMap.get(donation.donorId) || {
+        name: "Unknown Donor",
+        address: donation.location,
+      };
+
+      return {
+        ...donation,
+        donorName: donorData.name,
+        donorAddress: donorData.address || donation.location,
+      };
+    });
+
+    onUpdate(donationsWithDonorInfo);
+  });
 };

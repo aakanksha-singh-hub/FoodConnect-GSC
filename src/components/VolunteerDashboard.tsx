@@ -6,6 +6,8 @@ import {
   createPickup,
   getPickupsByVolunteer,
   updatePickupWithStatus,
+  subscribeToVolunteerPickups,
+  subscribeToAvailableDonations,
   PickupStatusType,
 } from "@/services/firebase";
 import { Donation, Pickup } from "@/types";
@@ -33,6 +35,8 @@ import {
   Phone,
   Mail,
   MessageSquare,
+  Eye,
+  X,
 } from "lucide-react";
 import {
   Card,
@@ -47,16 +51,28 @@ import { useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/ui/DashboardLayout";
 import { motion } from "framer-motion";
 import LocationDisplay from "@/components/ui/LocationDisplay";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 export default function VolunteerDashboard() {
   const { user, loading: userLoading } = useUser();
   const navigate = useNavigate();
   const [donations, setDonations] = useState<Donation[]>([]);
+  const [pickups, setPickups] = useState<Pickup[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [locationFilter, setLocationFilter] = useState("");
-  const [pickups, setPickups] = useState<Pickup[]>([]);
-  const [activeTab, setActiveTab] = useState("active");
+  const [activeTab, setActiveTab] = useState("available");
+  const [selectedDelivery, setSelectedDelivery] = useState<Donation | null>(
+    null
+  );
+  const [selectedPickup, setSelectedPickup] = useState<Pickup | null>(null);
+  const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [stats, setStats] = useState({
     totalPickups: 0,
     completedDeliveries: 0,
@@ -67,87 +83,83 @@ export default function VolunteerDashboard() {
     averageDeliveryTime: 0,
   });
 
-  // Memoize the fetchData function to prevent unnecessary re-renders
-  const fetchData = useCallback(async () => {
+  // Set up real-time subscriptions
+  useEffect(() => {
     if (!user) return;
 
-    try {
-      setLoading(true);
-      setError(null);
+    // Subscribe to available donations
+    const unsubscribeDonations = subscribeToAvailableDonations(
+      (updatedDonations) => {
+        setDonations(updatedDonations);
+        setLoading(false);
+      }
+    );
 
-      // Fetch accepted donations
-      const acceptedDonations = await getAcceptedDonations(locationFilter);
-      setDonations(acceptedDonations);
+    // Subscribe to volunteer's pickups
+    const unsubscribePickups = subscribeToVolunteerPickups(
+      user.uid,
+      (updatedPickups) => {
+        setPickups(updatedPickups);
 
-      // Fetch volunteer pickups
-      const volunteerPickups = await getPickupsByVolunteer(user.uid);
-      setPickups(volunteerPickups);
+        // Update stats
+        const completedPickups = updatedPickups.filter(
+          (p) => p.status === "delivered"
+        );
+        const totalFoodDelivered = completedPickups.reduce(
+          (sum, pickup) => sum + (pickup.quantity || 0),
+          0
+        );
+        const peopleHelped = new Set(completedPickups.map((p) => p.recipientId))
+          .size;
 
-      // Calculate stats
-      const completedPickups = volunteerPickups.filter(
-        (p) => p.status === "completed"
-      );
-      const totalFoodDelivered = completedPickups.reduce(
-        (sum, pickup) => sum + (pickup.quantity || 0),
-        0
-      );
-      const peopleHelped = new Set(completedPickups.map((p) => p.recipientId))
-        .size;
+        // Calculate average delivery time
+        const deliveryTimes = completedPickups
+          .map((p) => {
+            if (p.createdAt && p.deliveredAt) {
+              return (
+                new Date(p.deliveredAt).getTime() -
+                new Date(p.createdAt).getTime()
+              );
+            }
+            return 0;
+          })
+          .filter((time) => time > 0);
 
-      // Calculate average delivery time
-      const deliveryTimes = completedPickups
-        .map((p) => {
-          if (p.createdAt && p.deliveredAt) {
-            return (
-              new Date(p.deliveredAt).getTime() -
-              new Date(p.createdAt).getTime()
-            );
-          }
-          return 0;
-        })
-        .filter((time) => time > 0);
+        const averageDeliveryTime =
+          deliveryTimes.length > 0
+            ? deliveryTimes.reduce((sum, time) => sum + time, 0) /
+              deliveryTimes.length
+            : 0;
 
-      const averageDeliveryTime =
-        deliveryTimes.length > 0
-          ? deliveryTimes.reduce((sum, time) => sum + time, 0) /
-            deliveryTimes.length
-          : 0;
+        setStats({
+          totalPickups: updatedPickups.length,
+          completedDeliveries: completedPickups.length,
+          inTransitDeliveries: updatedPickups.filter(
+            (p) => p.status === "in_transit"
+          ).length,
+          pendingDeliveries: updatedPickups.filter(
+            (p) => p.status === "pending"
+          ).length,
+          totalFoodDelivered,
+          peopleHelped,
+          averageDeliveryTime,
+        });
+      }
+    );
 
-      setStats({
-        totalPickups: volunteerPickups.length,
-        completedDeliveries: completedPickups.length,
-        inTransitDeliveries: acceptedDonations.filter(
-          (d) => d.status === "in_transit" && d.volunteerId === user.uid
-        ).length,
-        pendingDeliveries: acceptedDonations.filter(
-          (d) => d.status === "accepted"
-        ).length,
-        totalFoodDelivered,
-        peopleHelped,
-        averageDeliveryTime,
-      });
-    } catch (err) {
-      console.error("Error fetching data:", err);
-      setError(err instanceof Error ? err.message : "Failed to fetch data");
-    } finally {
-      setLoading(false);
-    }
-  }, [user, locationFilter]);
+    // Cleanup subscriptions on unmount
+    return () => {
+      unsubscribeDonations();
+      unsubscribePickups();
+    };
+  }, [user]);
 
-  // Use useEffect with the memoized fetchData function
-  useEffect(() => {
-    if (!userLoading) {
-      fetchData();
-    }
-  }, [fetchData, userLoading]);
-
-  // Memoize the handleAcceptDelivery function
+  // Handle accepting a delivery
   const handleAcceptDelivery = useCallback(
     async (donation: Donation) => {
       if (!user) return;
 
       try {
-        setLoading(true);
         setError(null);
 
         // Create a pickup record
@@ -160,6 +172,16 @@ export default function VolunteerDashboard() {
           dropoffLocation:
             donation.recipientAddress || "Address will be provided",
           quantity: donation.quantity,
+          pickupAddress: donation.pickupAddress,
+          pickupCity: donation.pickupCity,
+          pickupState: donation.pickupState,
+          pickupZipCode: donation.pickupZipCode,
+          pickupLat: donation.pickupLat,
+          pickupLng: donation.pickupLng,
+          contactPersonName: donation.contactPersonName,
+          contactPersonPhone: donation.contactPersonPhone,
+          dropoffContactName: donation.recipientName,
+          dropoffContactPhone: "",
         });
 
         // Update donation status
@@ -168,54 +190,81 @@ export default function VolunteerDashboard() {
           volunteerName: user.displayName || "Anonymous Volunteer",
           pickupAt: new Date().toISOString(),
         });
-
-        // Refresh the data
-        await fetchData();
       } catch (err) {
         console.error("Error accepting delivery:", err);
         setError(
           err instanceof Error ? err.message : "Failed to accept delivery"
         );
-      } finally {
-        setLoading(false);
       }
     },
-    [user, fetchData]
+    [user]
   );
 
-  // Memoize the handleCompleteDelivery function
-  const handleCompleteDelivery = useCallback(
-    async (donation: Donation) => {
+  // Handle updating pickup status
+  const handleStatusUpdate = useCallback(
+    async (pickupId: string, newStatus: PickupStatusType) => {
       if (!user) return;
 
       try {
-        setLoading(true);
         setError(null);
-
-        // Update donation status to delivered
-        await updateDonationStatus(donation.id!, "delivered", {
-          deliveredAt: new Date().toISOString(),
-        });
-
-        // Update pickup status
-        const pickup = pickups.find((p) => p.donationId === donation.id);
-        if (pickup) {
-          await updatePickupWithStatus(pickup.id!, "delivered");
-        }
-
-        // Refresh the data
-        await fetchData();
+        await updatePickupWithStatus(pickupId, newStatus);
       } catch (err) {
-        console.error("Error completing delivery:", err);
+        console.error("Error updating pickup status:", err);
         setError(
-          err instanceof Error ? err.message : "Failed to complete delivery"
+          err instanceof Error ? err.message : "Failed to update pickup status"
         );
-      } finally {
-        setLoading(false);
       }
     },
-    [user, pickups, fetchData]
+    [user]
   );
+
+  // Handle viewing delivery details
+  const handleViewDetails = useCallback((delivery: Donation | Pickup) => {
+    if ("donorId" in delivery) {
+      setSelectedDelivery(delivery as Donation);
+      setSelectedPickup(null);
+    } else {
+      setSelectedPickup(delivery as Pickup);
+      setSelectedDelivery(null);
+    }
+    setShowDetailsDialog(true);
+  }, []);
+
+  // Filter donations based on active tab
+  const filteredDonations = useMemo(() => {
+    if (activeTab === "available") {
+      return donations.filter((d) => d.status === "accepted");
+    } else if (activeTab === "in-transit") {
+      return donations.filter(
+        (d) => d.status === "in_transit" && d.volunteerId === user?.uid
+      );
+    } else if (activeTab === "completed") {
+      return donations.filter(
+        (d) => d.status === "delivered" && d.volunteerId === user?.uid
+      );
+    }
+    return [];
+  }, [donations, activeTab, user?.uid]);
+
+  // Filter pickups based on active tab
+  const filteredPickups = useMemo(() => {
+    if (activeTab === "active") {
+      return pickups.filter(
+        (p) =>
+          p.status === "assigned" ||
+          p.status === "started_for_pickup" ||
+          p.status === "at_pickup_location" ||
+          p.status === "pickup_complete" ||
+          p.status === "in_transit" ||
+          p.status === "at_delivery_location"
+      );
+    } else if (activeTab === "completed") {
+      return pickups.filter((p) => p.status === "delivered");
+    } else if (activeTab === "cancelled") {
+      return pickups.filter((p) => p.status === "cancelled");
+    }
+    return pickups;
+  }, [pickups, activeTab]);
 
   // If user is not logged in, redirect to login
   if (!user) {
@@ -246,55 +295,6 @@ export default function VolunteerDashboard() {
       icon: <Users className="h-4 w-4 text-brand-green" />,
     },
   ];
-
-  // Filter donations based on active tab
-  const filteredDonations = useMemo(() => {
-    if (activeTab === "available") {
-      return donations.filter((d) => d.status === "accepted");
-    } else if (activeTab === "in-transit") {
-      return donations.filter(
-        (d) => d.status === "in_transit" && d.volunteerId === user?.uid
-      );
-    } else if (activeTab === "completed") {
-      return donations.filter(
-        (d) => d.status === "delivered" && d.volunteerId === user?.uid
-      );
-    }
-    return [];
-  }, [donations, activeTab, user?.uid]);
-
-  // Filter pickups based on active tab
-  const filteredPickups = pickups.filter((pickup) => {
-    if (activeTab === "active") {
-      return pickup.status === "in_progress";
-    } else if (activeTab === "completed") {
-      return pickup.status === "completed";
-    } else if (activeTab === "cancelled") {
-      return pickup.status === "cancelled";
-    }
-    return true;
-  });
-
-  const handleStatusUpdate = async (
-    pickupId: string,
-    newStatus: "delivered" | "cancelled"
-  ) => {
-    try {
-      setError(null);
-      await updatePickupWithStatus(pickupId, newStatus);
-
-      // Refresh the pickups list
-      if (user) {
-        const volunteerPickups = await getPickupsByVolunteer(user.uid);
-        setPickups(volunteerPickups);
-      }
-    } catch (err) {
-      console.error("Error updating pickup status:", err);
-      setError(
-        err instanceof Error ? err.message : "Failed to update pickup status"
-      );
-    }
-  };
 
   return (
     <DashboardLayout
@@ -349,7 +349,7 @@ export default function VolunteerDashboard() {
                   Check back later for new delivery opportunities
                 </p>
                 <Button
-                  onClick={fetchData}
+                  onClick={() => setActiveTab("available")}
                   className="bg-brand-green hover:bg-brand-green/90"
                 >
                   <RefreshCcw className="mr-2 h-4 w-4" /> Refresh
@@ -401,10 +401,18 @@ export default function VolunteerDashboard() {
                           )}
                         </div>
                       </CardContent>
-                      <CardFooter>
+                      <CardFooter className="flex justify-between">
+                        <Button
+                          onClick={() => handleViewDetails(donation)}
+                          variant="outline"
+                          size="sm"
+                          className="text-brand-green border-brand-green hover:bg-brand-green/10"
+                        >
+                          <Eye className="mr-2 h-4 w-4" /> View Details
+                        </Button>
                         <Button
                           onClick={() => handleAcceptDelivery(donation)}
-                          className="w-full bg-brand-green hover:bg-brand-green/90"
+                          className="bg-brand-green hover:bg-brand-green/90"
                           disabled={loading}
                         >
                           {loading ? (
@@ -527,10 +535,20 @@ export default function VolunteerDashboard() {
                           </div>
                         </div>
                       </CardContent>
-                      <CardFooter>
+                      <CardFooter className="flex justify-between">
                         <Button
-                          onClick={() => handleCompleteDelivery(donation)}
-                          className="w-full bg-brand-green hover:bg-brand-green/90"
+                          onClick={() => handleViewDetails(donation)}
+                          variant="outline"
+                          size="sm"
+                          className="text-brand-green border-brand-green hover:bg-brand-green/10"
+                        >
+                          <Eye className="mr-2 h-4 w-4" /> View Details
+                        </Button>
+                        <Button
+                          onClick={() =>
+                            handleStatusUpdate(donation.id!, "delivered")
+                          }
+                          className="bg-brand-green hover:bg-brand-green/90"
                           disabled={loading}
                         >
                           {loading ? (
@@ -649,13 +667,21 @@ export default function VolunteerDashboard() {
                           </div>
                         </div>
                       </CardContent>
-                      <CardFooter className="pt-0">
+                      <CardFooter className="flex justify-between">
                         <div className="text-xs text-gray-500">
                           Completed:{" "}
                           {new Date(
                             donation.deliveredAt || ""
                           ).toLocaleDateString()}
                         </div>
+                        <Button
+                          onClick={() => handleViewDetails(donation)}
+                          variant="outline"
+                          size="sm"
+                          className="text-brand-green border-brand-green hover:bg-brand-green/10"
+                        >
+                          <Eye className="mr-2 h-4 w-4" /> View Details
+                        </Button>
                       </CardFooter>
                     </Card>
                   </motion.div>
@@ -704,14 +730,18 @@ export default function VolunteerDashboard() {
                     </CardTitle>
                     <Badge
                       className={
-                        pickup.status === "in_progress"
+                        pickup.status === "in_transit" ||
+                        pickup.status === "at_pickup_location" ||
+                        pickup.status === "at_delivery_location"
                           ? "bg-blue-100 text-blue-800"
-                          : pickup.status === "completed"
+                          : pickup.status === "delivered"
                           ? "bg-green-100 text-green-800"
-                          : "bg-red-100 text-red-800"
+                          : pickup.status === "cancelled"
+                          ? "bg-red-100 text-red-800"
+                          : "bg-gray-100 text-gray-800"
                       }
                     >
-                      {pickup.status.replace("_", " ")}
+                      {pickup.status.replace(/_/g, " ")}
                     </Badge>
                   </div>
                 </CardHeader>
@@ -759,35 +789,435 @@ export default function VolunteerDashboard() {
                   <div className="text-xs text-gray-500">
                     Created: {new Date(pickup.createdAt).toLocaleDateString()}
                   </div>
-                  {pickup.status === "in_progress" && (
-                    <div className="flex space-x-2">
+                  <div className="flex space-x-2">
+                    <Button
+                      onClick={() => handleViewDetails(pickup)}
+                      variant="outline"
+                      size="sm"
+                      className="text-brand-green border-brand-green hover:bg-brand-green/10"
+                    >
+                      <Eye className="mr-2 h-4 w-4" /> View Details
+                    </Button>
+                    {pickup.status === "in_transit" && (
                       <Button
                         size="sm"
                         className="bg-green-600 hover:bg-green-700"
                         onClick={() =>
-                          handleStatusUpdate(pickup.id!, "completed")
+                          handleStatusUpdate(pickup.id!, "delivered")
                         }
                       >
                         Complete
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-red-600 border-red-600 hover:bg-red-50"
-                        onClick={() =>
-                          handleStatusUpdate(pickup.id!, "cancelled")
-                        }
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </CardFooter>
               </Card>
             </motion.div>
           ))}
         </div>
       )}
+
+      {/* Details Dialog */}
+      <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex justify-between items-center">
+              <span>
+                {selectedDelivery
+                  ? `Delivery Details: ${selectedDelivery.foodType}`
+                  : selectedPickup
+                  ? `Pickup Details: #${selectedPickup.id?.substring(0, 6)}`
+                  : "Delivery Details"}
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowDetailsDialog(false)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </DialogTitle>
+          </DialogHeader>
+
+          {selectedDelivery && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h3 className="text-lg font-medium mb-2">Food Information</h3>
+                  <div className="space-y-2">
+                    <div className="flex items-center">
+                      <Package className="h-4 w-4 mr-2 text-brand-green" />
+                      <span className="font-medium">Type:</span>
+                      <span className="ml-2 capitalize">
+                        {selectedDelivery.foodType}
+                      </span>
+                    </div>
+                    <div className="flex items-center">
+                      <span className="font-medium">Quantity:</span>
+                      <span className="ml-2">
+                        {selectedDelivery.quantity} kg
+                      </span>
+                    </div>
+                    <div className="flex items-center">
+                      <Thermometer className="h-4 w-4 mr-2 text-brand-green" />
+                      <span className="font-medium">Storage:</span>
+                      <span className="ml-2 capitalize">
+                        {selectedDelivery.storageType}
+                      </span>
+                    </div>
+                    {selectedDelivery.temperatureRange && (
+                      <div className="flex items-center">
+                        <span className="font-medium">Temperature Range:</span>
+                        <span className="ml-2">
+                          {selectedDelivery.temperatureRange}
+                        </span>
+                      </div>
+                    )}
+                    {selectedDelivery.allergens &&
+                      selectedDelivery.allergens.length > 0 && (
+                        <div>
+                          <span className="font-medium">Allergens:</span>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {selectedDelivery.allergens.map((allergen, i) => (
+                              <Badge
+                                key={i}
+                                variant="outline"
+                                className="bg-red-50 text-red-700 border-red-200"
+                              >
+                                {allergen}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    {selectedDelivery.expiryDate && (
+                      <div className="flex items-center">
+                        <Calendar className="h-4 w-4 mr-2 text-brand-green" />
+                        <span className="font-medium">Expires:</span>
+                        <span className="ml-2">
+                          {new Date(
+                            selectedDelivery.expiryDate
+                          ).toLocaleDateString()}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-lg font-medium mb-2">Delivery Status</h3>
+                  <div className="space-y-2">
+                    <div className="flex items-center">
+                      <span className="font-medium">Status:</span>
+                      <Badge
+                        className={`ml-2 ${
+                          selectedDelivery.status === "delivered"
+                            ? "bg-green-100 text-green-800"
+                            : selectedDelivery.status === "in_transit"
+                            ? "bg-yellow-100 text-yellow-800"
+                            : "bg-blue-100 text-blue-800"
+                        }`}
+                      >
+                        {selectedDelivery.status.replace(/_/g, " ")}
+                      </Badge>
+                    </div>
+                    {selectedDelivery.pickupAt && (
+                      <div className="flex items-center">
+                        <Clock className="h-4 w-4 mr-2 text-brand-green" />
+                        <span className="font-medium">Pickup Time:</span>
+                        <span className="ml-2">
+                          {new Date(selectedDelivery.pickupAt).toLocaleString()}
+                        </span>
+                      </div>
+                    )}
+                    {selectedDelivery.deliveredAt && (
+                      <div className="flex items-center">
+                        <CheckCircle className="h-4 w-4 mr-2 text-brand-green" />
+                        <span className="font-medium">Delivered At:</span>
+                        <span className="ml-2">
+                          {new Date(
+                            selectedDelivery.deliveredAt
+                          ).toLocaleString()}
+                        </span>
+                      </div>
+                    )}
+                    {selectedDelivery.createdAt && (
+                      <div className="flex items-center">
+                        <Calendar className="h-4 w-4 mr-2 text-brand-green" />
+                        <span className="font-medium">Created:</span>
+                        <span className="ml-2">
+                          {new Date(
+                            selectedDelivery.createdAt
+                          ).toLocaleString()}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h3 className="text-lg font-medium mb-2">Pickup Location</h3>
+                  <LocationDisplay
+                    address={{
+                      street: selectedDelivery.pickupAddress,
+                      city: selectedDelivery.pickupCity,
+                      state: selectedDelivery.pickupState,
+                      zipCode: selectedDelivery.pickupZipCode,
+                    }}
+                    contactName={selectedDelivery.contactPersonName}
+                    contactPhone={selectedDelivery.contactPersonPhone}
+                    instructions={selectedDelivery.pickupInstructions}
+                    title="Pickup Location"
+                  />
+                </div>
+
+                <div>
+                  <h3 className="text-lg font-medium mb-2">
+                    Delivery Location
+                  </h3>
+                  <LocationDisplay
+                    address={{
+                      street:
+                        selectedDelivery.recipientAddress ||
+                        "Address will be provided",
+                      city: "",
+                      state: "",
+                      zipCode: "",
+                    }}
+                    contactName={selectedDelivery.recipientName}
+                    contactPhone=""
+                    instructions=""
+                    title="Delivery Location"
+                  />
+                </div>
+              </div>
+
+              {selectedDelivery.description && (
+                <div>
+                  <h3 className="text-lg font-medium mb-2">Description</h3>
+                  <p className="text-gray-700">
+                    {selectedDelivery.description}
+                  </p>
+                </div>
+              )}
+
+              {selectedDelivery.specialInstructions && (
+                <div>
+                  <h3 className="text-lg font-medium mb-2">
+                    Special Instructions
+                  </h3>
+                  <p className="text-gray-700">
+                    {selectedDelivery.specialInstructions}
+                  </p>
+                </div>
+              )}
+
+              {selectedDelivery.photoUrls &&
+                selectedDelivery.photoUrls.length > 0 && (
+                  <div>
+                    <h3 className="text-lg font-medium mb-2">Photos</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      {selectedDelivery.photoUrls.map((url, i) => (
+                        <div
+                          key={i}
+                          className="relative aspect-square rounded-md overflow-hidden"
+                        >
+                          <img
+                            src={url}
+                            alt={`Food item ${i + 1}`}
+                            className="object-cover w-full h-full"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+            </div>
+          )}
+
+          {selectedPickup && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h3 className="text-lg font-medium mb-2">
+                    Pickup Information
+                  </h3>
+                  <div className="space-y-2">
+                    <div className="flex items-center">
+                      <span className="font-medium">Status:</span>
+                      <Badge
+                        className={`ml-2 ${
+                          selectedPickup.status === "delivered"
+                            ? "bg-green-100 text-green-800"
+                            : selectedPickup.status === "in_transit"
+                            ? "bg-yellow-100 text-yellow-800"
+                            : "bg-blue-100 text-blue-800"
+                        }`}
+                      >
+                        {selectedPickup.status.replace(/_/g, " ")}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center">
+                      <Calendar className="h-4 w-4 mr-2 text-brand-green" />
+                      <span className="font-medium">Created:</span>
+                      <span className="ml-2">
+                        {new Date(selectedPickup.createdAt).toLocaleString()}
+                      </span>
+                    </div>
+                    {selectedPickup.startedForPickupAt && (
+                      <div className="flex items-center">
+                        <Clock className="h-4 w-4 mr-2 text-brand-green" />
+                        <span className="font-medium">Started for Pickup:</span>
+                        <span className="ml-2">
+                          {new Date(
+                            selectedPickup.startedForPickupAt
+                          ).toLocaleString()}
+                        </span>
+                      </div>
+                    )}
+                    {selectedPickup.arrivedAtPickupAt && (
+                      <div className="flex items-center">
+                        <MapPin className="h-4 w-4 mr-2 text-brand-green" />
+                        <span className="font-medium">Arrived at Pickup:</span>
+                        <span className="ml-2">
+                          {new Date(
+                            selectedPickup.arrivedAtPickupAt
+                          ).toLocaleString()}
+                        </span>
+                      </div>
+                    )}
+                    {selectedPickup.pickupCompletedAt && (
+                      <div className="flex items-center">
+                        <CheckCircle className="h-4 w-4 mr-2 text-brand-green" />
+                        <span className="font-medium">Pickup Completed:</span>
+                        <span className="ml-2">
+                          {new Date(
+                            selectedPickup.pickupCompletedAt
+                          ).toLocaleString()}
+                        </span>
+                      </div>
+                    )}
+                    {selectedPickup.inTransitAt && (
+                      <div className="flex items-center">
+                        <Truck className="h-4 w-4 mr-2 text-brand-green" />
+                        <span className="font-medium">In Transit:</span>
+                        <span className="ml-2">
+                          {new Date(
+                            selectedPickup.inTransitAt
+                          ).toLocaleString()}
+                        </span>
+                      </div>
+                    )}
+                    {selectedPickup.arrivedAtDropoffAt && (
+                      <div className="flex items-center">
+                        <MapPin className="h-4 w-4 mr-2 text-brand-green" />
+                        <span className="font-medium">Arrived at Dropoff:</span>
+                        <span className="ml-2">
+                          {new Date(
+                            selectedPickup.arrivedAtDropoffAt
+                          ).toLocaleString()}
+                        </span>
+                      </div>
+                    )}
+                    {selectedPickup.deliveredAt && (
+                      <div className="flex items-center">
+                        <CheckCircle className="h-4 w-4 mr-2 text-brand-green" />
+                        <span className="font-medium">Delivered:</span>
+                        <span className="ml-2">
+                          {new Date(
+                            selectedPickup.deliveredAt
+                          ).toLocaleString()}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-lg font-medium mb-2">
+                    Contact Information
+                  </h3>
+                  <div className="space-y-2">
+                    <div>
+                      <span className="font-medium">Pickup Contact:</span>
+                      <div className="flex items-center mt-1">
+                        <User className="h-4 w-4 mr-2 text-brand-green" />
+                        <span>{selectedPickup.contactPersonName}</span>
+                      </div>
+                      <div className="flex items-center mt-1">
+                        <Phone className="h-4 w-4 mr-2 text-brand-green" />
+                        <span>{selectedPickup.contactPersonPhone}</span>
+                      </div>
+                    </div>
+                    {selectedPickup.dropoffContactName && (
+                      <div>
+                        <span className="font-medium">Dropoff Contact:</span>
+                        <div className="flex items-center mt-1">
+                          <User className="h-4 w-4 mr-2 text-brand-green" />
+                          <span>{selectedPickup.dropoffContactName}</span>
+                        </div>
+                        {selectedPickup.dropoffContactPhone && (
+                          <div className="flex items-center mt-1">
+                            <Phone className="h-4 w-4 mr-2 text-brand-green" />
+                            <span>{selectedPickup.dropoffContactPhone}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h3 className="text-lg font-medium mb-2">Pickup Location</h3>
+                  <LocationDisplay
+                    address={{
+                      street: selectedPickup.pickupAddress,
+                      city: selectedPickup.pickupCity,
+                      state: selectedPickup.pickupState,
+                      zipCode: selectedPickup.pickupZipCode,
+                    }}
+                    contactName={selectedPickup.contactPersonName}
+                    contactPhone={selectedPickup.contactPersonPhone}
+                    instructions={selectedPickup.pickupInstructions}
+                    title="Pickup Location"
+                  />
+                </div>
+
+                <div>
+                  <h3 className="text-lg font-medium mb-2">Dropoff Location</h3>
+                  <LocationDisplay
+                    address={{
+                      street: selectedPickup.dropoffAddress,
+                      city: selectedPickup.dropoffCity,
+                      state: selectedPickup.dropoffState,
+                      zipCode: selectedPickup.dropoffZipCode,
+                    }}
+                    contactName={selectedPickup.dropoffContactName}
+                    contactPhone={selectedPickup.dropoffContactPhone}
+                    instructions={selectedPickup.dropoffInstructions}
+                    title="Dropoff Location"
+                  />
+                </div>
+              </div>
+
+              {selectedPickup.notes && (
+                <div>
+                  <h3 className="text-lg font-medium mb-2">Notes</h3>
+                  <p className="text-gray-700">{selectedPickup.notes}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button onClick={() => setShowDetailsDialog(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

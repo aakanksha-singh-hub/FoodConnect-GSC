@@ -313,7 +313,7 @@ export default function DonorDashboard() {
         // Create donation object
         const newDonation: Omit<Donation, "id" | "status" | "createdAt"> = {
           donorId: user.uid,
-          donorName: user.displayName || "Anonymous Donor",
+          donorName: user.organizationName || user.name || "Anonymous Donor",
           foodType: formData.foodType,
           quantity: parseFloat(formData.quantity),
           unit: formData.unit,
