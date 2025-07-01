@@ -1,17 +1,13 @@
 # 🍽️ FoodConnect - Connecting Food Donors with Recipients
 
+## 🌟 Overview
 
-https://github.com/user-attachments/assets/d318bcd0-c848-4145-966b-945851e2c7dc
-
+FoodConnect is a comprehensive food donation platform that connects food donors (restaurants, grocery stores, individuals) with recipients (food banks, shelters, individuals in need) through a network of volunteers. Built with modern web technologies and powered by Google Cloud services, FoodConnect streamlines the food donation process, reduces food waste, and helps feed those in need.
 
 ## 📽️ Pitch Video
 
 [![Watch the demo](https://img.youtube.com/vi/3KvzGEDK1ik/0.jpg)](https://youtu.be/3KvzGEDK1ik)
 
-
-## 🌟 Overview
-
-FoodConnect is a comprehensive food donation platform that connects food donors (restaurants, grocery stores, individuals) with recipients (food banks, shelters, individuals in need) through a network of volunteers. Built with modern web technologies and powered by Google Cloud services, FoodConnect streamlines the food donation process, reduces food waste, and helps feed those in need.
 
 ## 🚀 Key Features
 
